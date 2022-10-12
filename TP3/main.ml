@@ -166,7 +166,7 @@ let vers_partie number size =
   fill number (size-1)
 
 
-let puissance a n =
+let puissance a n = (* calcule de puissance avec exponentiation rapide *)
   let rec _pow a n acc =
     match n with
     | 0 -> acc
@@ -177,32 +177,32 @@ let puissance a n =
 
 let determinise auto =
   let n, m = auto.nb, Array.length auto.sigma in
-  let part lst = Partie.construit lst n in
-  let delta' = Hashtbl.create (auto.nb * auto.nb) in
+  let part lst = Partie.construit lst n in (* alais pour rendre le code plus concis *)
+  let delta' = Hashtbl.create (auto.nb * auto.nb) in (* nouveaux arcs *)
 
   let autof = Partie.construit auto.f n in
-  let final = Partie.non_disjointes autof in
+  let final = Partie.non_disjointes autof in (* renvoie un super etat est final *)
 
   let i' = part auto.i in
 
   let visited = Array.make (puissance 2 n) false in
   visited.(vers_entier i') <- true;
 
-  let rec process s_state j remaining accept =
+  let rec process s_state j remaining accept = (* s_sate : super état traité, j : index de la lettre etudiée *)
     match j=m, remaining with
-    | true, []  -> {
+    | true, []  -> { (* terminaison *)
         nb = puissance 2 n ;
         sigma = auto.sigma ;
         i = [vers_entier i'] ;
         f = accept ;
         delta = delta'
       }
-    | true, new_state::remaining' ->
+    | true, new_state::remaining' -> (* toutes les lettres de l'état on étés étudiés, passer a la suivante *)
       if final s_state then 
         process new_state 0 remaining' ((vers_entier s_state)::accept)
       else
         process new_state 0 remaining' accept
-    | false, _ -> (
+    | false, _ -> ( (* etude d'une lettre *)
       let s' = lire_lettre_partie auto s_state auto.sigma.(j) in 
       Hashtbl.add delta' (vers_entier s_state, auto.sigma.(j)) [vers_entier s'];
       if visited.(vers_entier s') then
@@ -258,23 +258,9 @@ let emonde auto =
 
   let utiles = Partie.intersection accesibles co_accesibles in
   let n' = Array.fold_left (fun acc x -> acc + if x then 1 else 0) 0 utiles in
-  
-  (* print_string "accessibles : "  ;
-  Partie.print accesibles;
-  print_newline ();
-  print_string "co-accessibles : " ;
-  Partie.print co_accesibles;
-  print_newline ();
-  print_string "utiles : " ;
-  Partie.print utiles;
-  print_newline (); *)
 
-  let corresp = Array.make n (-1) in
+  let corresp = Array.make n (-1) in (* tableau des correspondaces des anciens états dans le nouvel automate *)
   let _ = Partie.fold_left (fun i' i -> (corresp.(i) <- i'; i' +1)) 0 utiles in
-  
-  (* for i = 0 to n-1 do
-    Printf.printf "%d -> %d \n" i corresp.(i)
-  done; *)
 
   let convert states = states
     |> List.filter (fun q -> Partie.appartient q utiles) 
@@ -350,12 +336,12 @@ let () =
   pretty_test (Partie.intersection 1#|0     1#|1    ) 1#|0      "{_} u {0} = {_}";
   
 
-  print_endline "==== Deter ====";
+  print_endline "==== Determinise ====";
   let a2 = determinise a1 in
   affiche_automate a2 print_char;
   pretty_test (est_deterministe a2) true "a1 a été correctement déterminisé";
 
-  print_endline "==== Mondain ====";
+  print_endline "==== Emonde ====";
   let a3 = emonde a2 in
   affiche_automate a3 print_char;
 

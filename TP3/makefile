@@ -14,5 +14,5 @@ run: main automates.cmo
 
 
 clean:
-	rm -f unionfind_maze
-	rm -f *.cmi *.cmo
+	rm main
+	rm *.cmi *.cmo
