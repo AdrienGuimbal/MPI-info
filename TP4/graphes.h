@@ -34,5 +34,10 @@ void init_graph (digraph * graph, uint size);
 void release_graph (digraph* graph);
 void to_neato (const digraph graph, const char* filename);
 void depth_search (digraph* graph, uint* order);
+uint* range (uint a, uint b);
+digraph* transpose(digraph* graph);
+void scc (digraph* graph);
+uint get_root(digraph * graph, uint i);
+
 
 int main();
