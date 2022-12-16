@@ -2,3 +2,4 @@ graphes
 *.dot
 *.pdf
 *.o
+vgcore.*

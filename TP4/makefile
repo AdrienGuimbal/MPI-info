@@ -9,7 +9,7 @@ graphes: graphes.c
 main: graphes
 
 run: main
-	./graphes 4 grafield.dot
+	./graphes 10 grafield.dot
 
 grafield.pdf: grafield.dot
 	neato -Tpdf -o grafield.pdf grafield.dot

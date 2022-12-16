@@ -15,9 +15,6 @@ int main(const int argc, const char * argv[]) {
 	digraph grafield;
 	init_graph(&grafield, size);
 
-	//uint* order = range(0, size*size);
-	//depth_search(&grafield, order);
-
 	scc(&grafield);
 
 	to_neato(grafield, argv[2]);
@@ -52,8 +49,8 @@ void init_graph (digraph *graph, uint size) {
 	// initialisation des constantes et allocations
 	graph->s = size;
 	graph->S = S;
-	graph->vertices = (node*) calloc(S, sizeof(node));
-	graph->edges = (bool*) malloc(S * S * sizeof(bool));
+	graph->vertices = (node*) malloc(S * sizeof(node));
+	graph->edges = (bool*) calloc(S * S, sizeof(bool));
 
 	assert( graph->vertices != NULL && graph->edges != NULL);
 	
@@ -73,6 +70,14 @@ void init_graph (digraph *graph, uint size) {
 			set_edge(graph, curr, down,  dir);
 			set_edge(graph, down, curr, !dir);
 		}
+	}
+
+	// initialise les sommets
+	forr (i, S) {
+		(graph->vertices)[i].debut = 0;
+		(graph->vertices)[i].fin = 0;
+		(graph->vertices)[i].parent = i;
+		(graph->vertices)[i].status = NonVu;
 	}
 }
 
@@ -96,7 +101,7 @@ void to_neato (digraph graph, const char* filename) {
 	forr (i, graph.S) {
 //		fprintf(file, "\tnode[label=\"%i/%i\"]\n", (graph.vertices)[i].debut, (graph.vertices)[i].fin);
 		fprintf(file, "\tnode[color=%i]\n", 1 + get_root(&graph, i)%12);
-		fprintf(file, "\t%i[pos=\"%i,%i!\" color=\"%i\"];\n", i, i/graph.s, i%graph.s, i%13);
+		fprintf(file, "\t%i[pos=\"%i,%i!\"];\n", i, i/graph.s, i%graph.s);
 	}
 
 	forr (i, graph.S)
@@ -124,31 +129,33 @@ uint* range (uint a, uint b) { // renvoie liste d'entiers de [a;b[ dans l'ordre 
 
 void visit (digraph* graph, uint s, uint* time) {
 
-	graph->vertices[s].debut = (*time)++;
-	graph->vertices[s].status = EnExploration;
+	(graph->vertices)[s].status = EnExploration;
+	(graph->vertices)[s].debut = (*time)++;
 	
 	forr (j, graph->S) {
-		if (has_edge(graph, s, j) && graph->vertices[j].status == NonVu) {
-			graph->vertices[j].parent = s;
+		if (has_edge(graph, s, j) && (graph->vertices)[j].status == NonVu) {
+			(graph->vertices)[j].parent = s;
+			printf("a visit %i %i\n", s, j);
 			visit(graph, j, time);
 		}
 	}
 
-	graph->vertices[s].fin = (*time)++;
-	graph->vertices[s].status = Vu;
+	(graph->vertices)[s].status = Vu;
+	(graph->vertices)[s].fin = (*time)++;
 }
 
 void depth_search (digraph* graph, uint* order) {
 	uint time = 1;
 
 	forr (i, graph->S) {
-		graph->vertices[i].status = NonVu;
-		graph->vertices[i].parent = i;
+		(graph->vertices)[i].status = NonVu;
+		(graph->vertices)[i].parent = i;
 	}
 
 	forr (_i, graph->S) {
 		uint i = order[_i];
-		if (graph->vertices[i].status == NonVu) {
+		if ((graph->vertices)[i].status == NonVu) {
+			printf("New visit %i\n", i);
 			visit(graph, i, &time);
 		}
 	}
@@ -165,60 +172,70 @@ digraph* transpose (digraph *graph) {
 	graphT->s = size;
 	graphT->S = S;
 	graphT->vertices = (node*) calloc(S, sizeof(node));
-	graphT->edges = (bool*) calloc(S * S, sizeof(bool));
+	graphT->edges = (bool*) malloc(S * S * sizeof(bool));
 
 	assert( graphT->vertices != NULL && graphT->edges != NULL);
 	
-	// ajout aléatoire des arêtes
-	forr ( i, size ) forr ( j, size ) {
-		uint curr = idx(  i,   j, graph->s);
-		uint left = idx(  i, j+1, graph->s);
-		uint down = idx(i+1,   j, graph->s);
-
-		if (i < size )
-			set_edge(graphT, left, curr, has_edge(graph, curr, left));
-		
-		if (j < size)
-			set_edge(graphT, down, curr, has_edge(graph, curr, down));
+	forr (i, S) forr(j, S) {
+		graphT->edges[i + j*S] = graph->edges[j + i*S];
 	}
 	return graphT;
 }
 
-void swap (uint* table, uint i, uint j) {
-	table[i] += table[j];
-	table[j] = table[i] - table[j];
-	table[i] -= table[j];
+uint valof (uint i, digraph* G, uint* table) {
+	return (G->vertices)[table[i]].fin;
 }
 
-uint valof (uint i, digraph* graph) {
-	return graph->vertices[i].fin;
+void swap (uint i, uint j, uint* table) {
+	uint temp = table[i];
+	table[i] = table[j];
+	table[j] = temp;
 }
 
-void sort (digraph *G, uint *order, uint from, uint to) {
-	if (from == to) return;
-	assert(from < to && from >=0);
-
-	uint piv_val = valof(order[from], G); // pivot, ceux en dessous serons > ceux au dessus <=
-	uint first_not_small = to;
-	uint last_not_big = from + 1;
-
+void sort (digraph* G, uint* table, uint from, uint to, uint maxval) {
+	//printf("sort %i %i \n", from, to);
+	assert(from <= to);
+	assert(0 <= from);
+	assert(to < maxval);
 	
-	while (last_not_big + 1 != first_not_small) {
-		if (valof(last_not_big, G) > piv_val) {
-			last_not_big++;
-		} else if (valof(first_not_small, G) <= piv_val) {
-			first_not_small--;
+	if (from == to) return;
+	if (from+1 == to) {
+		if (valof(from, G, table) < valof(to, G, table)) {
+			swap(from, to, table);
+		}
+		return;
+	}
+
+	// pivot is the first value
+	uint piv_val = valof(from, G, table);
+	
+	uint i = from+1; // first element smaller than the pivot
+	uint j = to; // last element greater than the pivot
+
+	while (i < j) {
+		if (i>= maxval) {
+			printf("I is getting out of control(%i)\n", i);
+			exit(0);
+		}
+		// printf("%2i %2i ", i, table[i]);
+		// printf("%3i ,", valof(i, G, table));
+		// printf(" %2i %2i ", j, table[j]);
+		// printf("%3i \n", valof(j, G, table));
+		if (valof(i, G, table) < piv_val) {
+			i++;
+		} else if (valof(j, G, table) >= piv_val) {
+			j--;
 		} else {
-			swap(order, last_not_big, first_not_small);
-			last_not_big++;
-			first_not_small--;
+			swap(i, j, table);
+			i++;
+			j--;
 		}
 	}
-	
-	swap(order, 0, last_not_big);
+	swap(from, i, table);
 
-	sort(G, order, from, last_not_big-1);
-	sort(G, order, first_not_small, to);
+	sort(G, table, from, i-1, maxval);
+	if (i != to)
+		sort(G, table, i+1, to, maxval);
 }
 
 /**************\
@@ -226,13 +243,20 @@ void sort (digraph *G, uint *order, uint from, uint to) {
 \**************/
 void scc (digraph* graph) {
 	uint* order = range(0, graph->S);
+
 	depth_search(graph, order);
-	sort (graph, order, 0, graph->S-1);
+	sort (graph, order, 0, graph->S-1, graph->S);
+	printf("S = %i\n", graph->S);
+
 	digraph *graphT = transpose(graph);
 	depth_search(graphT, order);
 	
 	forr (i, graph->S) {
-		graph->vertices[i].parent = graphT->vertices[i].parent;
+		(graph->vertices)[i].parent = (graphT->vertices)[i].parent;
+	}
+
+	forr (i, graph->S) {
+		printf("p : %i %i\n", i, get_root(graph, i));
 	}
 
 	release_graph(graphT);
@@ -240,9 +264,9 @@ void scc (digraph* graph) {
 }
 
 uint get_root(digraph * graph, uint i) {
-	if (graph->vertices[i].parent == i) return i;
-	return (
-		// pour optimiser, réasigne la valeur du parent avant de la renvoyer
-		graph->vertices[i].parent = get_root(graph, graph->vertices[i].parent)
-	);
+	if ((graph->vertices)[i].parent == i) return i;
+	//printf("%i not self-enfanted\n", i);
+	// pour optimiser, réasigne la valeur du parent avant de la renvoyer
+	(graph->vertices)[i].parent = get_root(graph, (graph->vertices)[i].parent);
+	return ((graph->vertices)[i].parent);
 }
